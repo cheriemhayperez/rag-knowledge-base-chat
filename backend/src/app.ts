@@ -2,6 +2,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { documentsRouter } from "./routes/documents.js";
+import { retrieveRouter } from "./routes/retrieve.js";
 
 export function createApp() {
   const app = express();
@@ -15,6 +16,7 @@ export function createApp() {
   });
 
   app.use("/api/documents", documentsRouter);
+  app.use("/api/retrieve", retrieveRouter);
 
   return app;
 }

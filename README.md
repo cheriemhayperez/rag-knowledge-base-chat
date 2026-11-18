@@ -4,7 +4,7 @@ Multi-business AI Knowledge Base Chat using Retrieval-Augmented Generation (RAG)
 
 Businesses upload documentation into an isolated knowledge base. Users ask questions in chat and receive AI answers grounded in those documents, with retrieved chunk context as sources.
 
-Early-stage portfolio project: PDF ingestion into Neon is in place; end-to-end RAG chat is not complete yet.
+Early-stage portfolio project: PDF ingestion and vector retrieval are in place; LLM answer generation and frontend chat are not complete yet.
 
 ## Problem
 
@@ -18,19 +18,21 @@ Company knowledge is often trapped in PDFs and internal docs. Manual search is s
 | Backend | Node.js, Express, TypeScript |
 | Database | Neon PostgreSQL + pgvector |
 | Document text | `pdf-parse` (selectable-text PDFs; no OCR) |
-| Embeddings / LLM | Google Gemini via `@google/genai` (embedding + ingest implemented; chat/LLM not built yet) |
+| Embeddings / LLM | Google Gemini via `@google/genai` (embed, ingest, retrieve implemented; chat/LLM answer not built yet) |
 
 Two independent apps (`frontend/`, `backend/`)
 
 ## Architecture
 
 ```
-User → Frontend (Next.js) — upload UI planned
+User → Frontend (Next.js) — upload/chat UI planned
          → REST → Backend (Express)
                      → POST /api/documents/upload
                      → PDF extract → chunk text → embed (RETRIEVAL_DOCUMENT, 768-dim)
                      → Neon transaction: documents + document_chunks
-                     → (planned) retrieve vectors → Gemini answer
+                     → POST /api/retrieve
+                     → embed question (RETRIEVAL_QUERY) → pgvector cosine search
+                     → (planned) Gemini LLM answer with citations
 ```
 
 ## RAG workflow
@@ -42,7 +44,8 @@ User → Frontend (Next.js) — upload UI planned
 | 3. Split into overlapping chunks | Utility implemented |
 | 4. Create embeddings (`gemini-embedding-001`, 768-dim) | Service implemented |
 | 5. Store vectors in `document_chunks` | Implemented (single DB transaction) |
-| 6. Chat: retrieve + LLM answer with citations | Planned |
+| 6. Retrieve similar chunks | API implemented (`POST /api/retrieve`) |
+| 7. LLM answer with citations | Planned |
 
 ## Implemented
 
@@ -57,18 +60,25 @@ User → Frontend (Next.js) — upload UI planned
   - `embedText()` / `embedTexts()` via `@google/genai`
   - Model `gemini-embedding-001`, 768 dimensions (must match `document_chunks.embedding vector(768)`)
   - L2-normalized vectors
-  - Task types: `RETRIEVAL_DOCUMENT` (chunks), `RETRIEVAL_QUERY` (future questions)
+  - Task types: `RETRIEVAL_DOCUMENT` (chunks), `RETRIEVAL_QUERY` (questions)
 - Document ingestion API (`POST /api/documents/upload`)
   - Multipart fields: `businessId` (existing `businesses.id` UUID), `file` (PDF only, max 10 MB)
   - Pipeline: extract → chunk → `embedTexts(..., "RETRIEVAL_DOCUMENT")` → one Neon transaction
   - Saves `documents` (`status: ready`) and all `document_chunks` with embeddings
+  - `businessId` is a temporary testing selector — not authentication or authorization
+- Vector retrieval API (`POST /api/retrieve`)
+  - JSON: `businessId` (required), `question` (required), `limit` (optional; default 5, max 20)
+  - Embeds the question with `embedText(..., "RETRIEVAL_QUERY")`
+  - pgvector cosine similarity search over `document_chunks`
+  - Filters by `business_id` and `documents.status = 'ready'`
+  - Returns `chunkId`, `documentId`, `filename`, `chunkIndex`, `content`, `similarity`
   - `businessId` is a temporary testing selector — not authentication or authorization
 
 ## Planned
 
 - Auth and business memberships
 - Durable PDF file storage (disk/object storage)
-- Retrieval + chat API with citations
+- LLM answer generation with citations (using retrieved chunks)
 - Frontend upload and chat UI
 - OCR for scanned PDFs (out of scope for v1)
 
@@ -89,8 +99,10 @@ KnowledgeBaseChat/
     src/index.ts
     src/config/database.ts
     src/routes/documents.ts
+    src/routes/retrieve.ts
     src/services/embeddings.ts
     src/services/ingestDocument.ts
+    src/services/retrieveChunks.ts
     src/utils/extractPdfText.ts
     src/utils/chunkText.ts
 ```
@@ -153,9 +165,25 @@ RETURNING id;
 3. Expect `201` with `documentId`, `status: "ready"`, and `chunkCount`.
 4. Confirm rows in Neon for that document and its `document_chunks` embeddings.
 
+### Retrieve chunks (Postman)
+
+1. `POST http://localhost:4000/api/retrieve`
+2. Body → raw JSON, for example:
+
+```json
+{
+  "businessId": "<existing-business-uuid>",
+  "question": "What is the refund policy?",
+  "limit": 5
+}
+```
+
+3. Expect `200` with `results` containing `chunkId`, `documentId`, `filename`, `chunkIndex`, `content`, and `similarity`.
+4. Only chunks for that business and `ready` documents are returned.
+
 ## Security
 
 - Keep secrets in local `.env` only.
 - Do not commit API keys, database URLs, or customer PDFs.
 - Auth and tenant enforcement in application code are not implemented yet.
-- `businessId` on upload only checks that the business exists; it is not authorization.
+- `businessId` on upload and retrieve only checks that the business exists; it is not authorization.
