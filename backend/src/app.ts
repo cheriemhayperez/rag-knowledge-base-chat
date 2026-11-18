@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { documentsRouter } from "./routes/documents.js";
 
 export function createApp() {
   const app = express();
@@ -12,6 +13,8 @@ export function createApp() {
   app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "knowledgebasechat-backend" });
   });
+
+  app.use("/api/documents", documentsRouter);
 
   return app;
 }
