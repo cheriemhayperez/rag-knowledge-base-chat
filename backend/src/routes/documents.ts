@@ -4,6 +4,7 @@ import {
   IngestError,
   ingestDocument,
 } from "../services/ingestDocument.js";
+import { logInfo } from "../utils/logger.js";
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -50,6 +51,8 @@ documentsRouter.post("/upload", (req, res) => {
     }
 
     try {
+      logInfo("Validating request");
+
       const businessId =
         typeof req.body?.businessId === "string" ? req.body.businessId : "";
       if (!businessId.trim()) {
@@ -64,6 +67,7 @@ documentsRouter.post("/upload", (req, res) => {
         return;
       }
 
+      logInfo("Processing PDF document");
       const result = await ingestDocument({
         businessId,
         filename: req.file.originalname,
@@ -71,6 +75,7 @@ documentsRouter.post("/upload", (req, res) => {
         data: req.file.buffer,
       });
 
+      logInfo("Request completed");
       res.status(201).json(result);
     } catch (error) {
       if (error instanceof IngestError) {

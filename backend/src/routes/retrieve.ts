@@ -3,6 +3,7 @@ import {
   RetrieveError,
   retrieveChunks,
 } from "../services/retrieveChunks.js";
+import { logInfo } from "../utils/logger.js";
 
 export const retrieveRouter = Router();
 
@@ -13,6 +14,8 @@ export const retrieveRouter = Router();
  */
 retrieveRouter.post("/", async (req, res) => {
   try {
+    logInfo("Validating request");
+
     const businessId =
       typeof req.body?.businessId === "string" ? req.body.businessId : "";
     const question =
@@ -25,12 +28,14 @@ retrieveRouter.post("/", async (req, res) => {
       return;
     }
 
+    logInfo("Retrieving relevant document chunks");
     const result = await retrieveChunks({
       businessId,
       question,
       limit,
     });
 
+    logInfo("Request completed");
     res.status(200).json(result);
   } catch (error) {
     if (error instanceof RetrieveError) {

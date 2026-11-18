@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { ChatError, answerQuestion } from "../services/answerQuestion.js";
 import { RetrieveError } from "../services/retrieveChunks.js";
+import { logInfo } from "../utils/logger.js";
 
 export const chatRouter = Router();
 
@@ -11,6 +12,8 @@ export const chatRouter = Router();
  */
 chatRouter.post("/", async (req, res) => {
   try {
+    logInfo("Validating request");
+
     const businessId =
       typeof req.body?.businessId === "string" ? req.body.businessId : "";
     const question =
@@ -29,6 +32,7 @@ chatRouter.post("/", async (req, res) => {
       limit,
     });
 
+    logInfo("Request completed");
     res.status(200).json(result);
   } catch (error) {
     if (error instanceof RetrieveError || error instanceof ChatError) {

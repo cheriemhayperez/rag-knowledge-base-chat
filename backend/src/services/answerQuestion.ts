@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { GoogleGenAI } from "@google/genai";
+import { logInfo } from "../utils/logger.js";
 import { retrieveChunks, type RetrievedChunk } from "./retrieveChunks.js";
 
 export const DEFAULT_CHAT_MODEL = "gemini-3.5-flash-lite";
@@ -111,6 +112,7 @@ ${question}`;
 export async function answerQuestion(
   input: AnswerQuestionInput,
 ): Promise<AnswerQuestionResult> {
+  logInfo("Retrieving relevant document chunks");
   const retrieved = await retrieveChunks({
     businessId: input.businessId,
     question: input.question,
@@ -132,6 +134,7 @@ export async function answerQuestion(
 
   let answer: string;
   try {
+    logInfo("Generating answer with Gemini");
     const response = await getClient().models.generateContent({
       model: getChatModel(),
       contents: prompt,
