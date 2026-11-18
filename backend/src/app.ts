@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import { chatRouter } from "./routes/chat.js";
 import { documentsRouter } from "./routes/documents.js";
 import { retrieveRouter } from "./routes/retrieve.js";
 
@@ -17,6 +18,7 @@ export function createApp() {
 
   app.use("/api/documents", documentsRouter);
   app.use("/api/retrieve", retrieveRouter);
+  app.use("/api/chat", chatRouter);
 
   return app;
 }

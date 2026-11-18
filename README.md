@@ -4,7 +4,7 @@ Multi-business AI Knowledge Base Chat using Retrieval-Augmented Generation (RAG)
 
 Businesses upload documentation into an isolated knowledge base. Users ask questions in chat and receive AI answers grounded in those documents, with retrieved chunk context as sources.
 
-Early-stage portfolio project: PDF ingestion and vector retrieval are in place; LLM answer generation and frontend chat are not complete yet.
+Early-stage portfolio project: PDF ingestion, vector retrieval, and LLM answer generation are in place; frontend upload/chat UI is not complete yet.
 
 ## Problem
 
@@ -18,7 +18,7 @@ Company knowledge is often trapped in PDFs and internal docs. Manual search is s
 | Backend | Node.js, Express, TypeScript |
 | Database | Neon PostgreSQL + pgvector |
 | Document text | `pdf-parse` (selectable-text PDFs; no OCR) |
-| Embeddings / LLM | Google Gemini via `@google/genai` (embed, ingest, retrieve implemented; chat/LLM answer not built yet) |
+| Embeddings / LLM | Google Gemini via `@google/genai` (embed `gemini-embedding-001`; chat `gemini-3.5-flash-lite` via `GEMINI_CHAT_MODEL`) |
 
 Two independent apps (`frontend/`, `backend/`)
 
@@ -32,7 +32,8 @@ User → Frontend (Next.js) — upload/chat UI planned
                      → Neon transaction: documents + document_chunks
                      → POST /api/retrieve
                      → embed question (RETRIEVAL_QUERY) → pgvector cosine search
-                     → (planned) Gemini LLM answer with citations
+                     → POST /api/chat
+                     → retrieveChunks → Gemini generateContent → grounded answer + sources
 ```
 
 ## RAG workflow
@@ -45,7 +46,7 @@ User → Frontend (Next.js) — upload/chat UI planned
 | 4. Create embeddings (`gemini-embedding-001`, 768-dim) | Service implemented |
 | 5. Store vectors in `document_chunks` | Implemented (single DB transaction) |
 | 6. Retrieve similar chunks | API implemented (`POST /api/retrieve`) |
-| 7. LLM answer with citations | Planned |
+| 7. LLM answer with citations | API implemented (`POST /api/chat`) |
 
 ## Implemented
 
@@ -73,12 +74,22 @@ User → Frontend (Next.js) — upload/chat UI planned
   - Filters by `business_id` and `documents.status = 'ready'`
   - Returns `chunkId`, `documentId`, `filename`, `chunkIndex`, `content`, `similarity`
   - `businessId` is a temporary testing selector — not authentication or authorization
+- RAG chat API (`POST /api/chat`)
+  - JSON: `businessId` (required), `question` (required), `limit` (optional; default 5, max 20)
+  - Reuses `retrieveChunks` for tenant-scoped retrieval (no separate unscoped chunk query)
+  - Generates a grounded answer with Gemini `generateContent` (`GEMINI_CHAT_MODEL`, default `gemini-3.5-flash-lite`)
+  - Embedding model stays separate (`gemini-embedding-001`)
+  - If retrieval returns no chunks, returns a fixed insufficient-information answer without calling Gemini
+  - If chunks are returned but the context does not support an answer, the model is instructed to say so rather than invent facts
+  - Returns `answer` plus `sources` with `chunkId`, `documentId`, `filename`, `chunkIndex`, `similarity` (no raw chunk `content`)
+  - Chat client uses SDK `httpOptions.retryOptions` for temporary HTTP errors (408, 429, 500, 502, 503, 504; up to 4 attempts)
+  - Validation/errors align with retrieve: 400 invalid input, 404 unknown business, 502 Gemini failures (generic client message)
+  - `businessId` is a temporary testing selector — not authentication or authorization
 
 ## Planned
 
 - Auth and business memberships
 - Durable PDF file storage (disk/object storage)
-- LLM answer generation with citations (using retrieved chunks)
 - Frontend upload and chat UI
 - OCR for scanned PDFs (out of scope for v1)
 
@@ -100,16 +111,18 @@ KnowledgeBaseChat/
     src/config/database.ts
     src/routes/documents.ts
     src/routes/retrieve.ts
+    src/routes/chat.ts
     src/services/embeddings.ts
     src/services/ingestDocument.ts
     src/services/retrieveChunks.ts
+    src/services/answerQuestion.ts
     src/utils/extractPdfText.ts
     src/utils/chunkText.ts
 ```
 
 ## Setup
 
-**Prerequisites:** Node.js 20+, Neon project, Google Gemini API key (obtainable from Google AI Studio; required for embeddings; chat later). For a fresh Neon database, apply `backend/migrations/001_initial_schema.sql` once. This project’s existing database already has that schema applied. Seed at least one `businesses` row for upload testing.
+**Prerequisites:** Node.js 20+, Neon project, Google Gemini API key (obtainable from Google AI Studio; required for embeddings and chat). For a fresh Neon database, apply `backend/migrations/001_initial_schema.sql` once. This project’s existing database already has that schema applied. Seed at least one `businesses` row for upload testing.
 
 ```bash
 cd frontend
@@ -125,9 +138,10 @@ cp .env.example .env
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | Neon Postgres connection string |
-| `GEMINI_API_KEY` | Required to call `embedText` / `embedTexts` (backend only; never commit) |
+| `GEMINI_API_KEY` | Required for embeddings and chat generation (backend only; never commit) |
 | `GEMINI_EMBEDDING_MODEL` | Embedding model (default `gemini-embedding-001`) |
 | `GEMINI_EMBEDDING_DIMENSIONS` | Output dimensions (default `768`; only `768` is supported today — must match DB `vector(768)`; other values are rejected) |
+| `GEMINI_CHAT_MODEL` | Text generation model for `/api/chat` (default `gemini-3.5-flash-lite`) |
 | `PORT` | Backend port (default `4000`) |
 
 Use `RETRIEVAL_DOCUMENT` when embedding document chunks and `RETRIEVAL_QUERY` for user questions.
@@ -181,9 +195,26 @@ RETURNING id;
 3. Expect `200` with `results` containing `chunkId`, `documentId`, `filename`, `chunkIndex`, `content`, and `similarity`.
 4. Only chunks for that business and `ready` documents are returned.
 
+### Chat (Postman)
+
+1. `POST http://localhost:4000/api/chat`
+2. Body → raw JSON, for example:
+
+```json
+{
+  "businessId": "<existing-business-uuid>",
+  "question": "What is the refund policy?",
+  "limit": 5
+}
+```
+
+3. Expect `200` with `answer` and `sources` (`chunkId`, `documentId`, `filename`, `chunkIndex`, `similarity`; no chunk `content`).
+4. Empty retrieval returns a fixed insufficient-information `answer` and `sources: []` without calling Gemini.
+5. Only that business’s `ready` documents are used as context.
+
 ## Security
 
 - Keep secrets in local `.env` only.
 - Do not commit API keys, database URLs, or customer PDFs.
 - Auth and tenant enforcement in application code are not implemented yet.
-- `businessId` on upload and retrieve only checks that the business exists; it is not authorization.
+- `businessId` on upload, retrieve, and chat only checks that the business exists; it is not authorization.
