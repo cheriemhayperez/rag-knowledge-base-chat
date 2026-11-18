@@ -4,7 +4,7 @@ Multi-business AI Knowledge Base Chat using Retrieval-Augmented Generation (RAG)
 
 Businesses upload documentation into an isolated knowledge base. Users ask questions in chat and receive AI answers grounded in those documents, with retrieved chunk context as sources.
 
-Early-stage portfolio project: infrastructure and ingestion utilities are in place; end-to-end RAG chat is not complete yet.
+Early-stage portfolio project: PDF ingestion into Neon is in place; end-to-end RAG chat is not complete yet.
 
 ## Problem
 
@@ -18,30 +18,30 @@ Company knowledge is often trapped in PDFs and internal docs. Manual search is s
 | Backend | Node.js, Express, TypeScript |
 | Database | Neon PostgreSQL + pgvector |
 | Document text | `pdf-parse` (selectable-text PDFs; no OCR) |
-| Embeddings / LLM | Google Gemini via `@google/genai` (embedding service implemented; chat/LLM not built yet) |
+| Embeddings / LLM | Google Gemini via `@google/genai` (embedding + ingest implemented; chat/LLM not built yet) |
 
 Two independent apps (`frontend/`, `backend/`)
 
 ## Architecture
 
 ```
-User → Frontend (Next.js)
+User → Frontend (Next.js) — upload UI planned
          → REST → Backend (Express)
-                     → PDF extraction + text chunking utilities (implemented)
-                     → Gemini embedding service (implemented, standalone)
-                     → (planned) connect ingestion → store/retrieve vectors → Gemini answers
-                     → Neon PostgreSQL
+                     → POST /api/documents/upload
+                     → PDF extract → chunk text → embed (RETRIEVAL_DOCUMENT, 768-dim)
+                     → Neon transaction: documents + document_chunks
+                     → (planned) retrieve vectors → Gemini answer
 ```
 
 ## RAG workflow
 
 | Step | Status |
 |------|--------|
-| 1. Upload PDF | Planned |
+| 1. Upload PDF | API implemented (`POST /api/documents/upload`) |
 | 2. Extract selectable text | Utility implemented |
 | 3. Split into overlapping chunks | Utility implemented |
 | 4. Create embeddings (`gemini-embedding-001`, 768-dim) | Service implemented |
-| 5. Store vectors in `document_chunks` | Planned (table ready) |
+| 5. Store vectors in `document_chunks` | Implemented (single DB transaction) |
 | 6. Chat: retrieve + LLM answer with citations | Planned |
 
 ## Implemented
@@ -58,13 +58,16 @@ User → Frontend (Next.js)
   - Model `gemini-embedding-001`, 768 dimensions (must match `document_chunks.embedding vector(768)`)
   - L2-normalized vectors
   - Task types: `RETRIEVAL_DOCUMENT` (chunks), `RETRIEVAL_QUERY` (future questions)
-  - Not connected to upload routes or database writes yet
+- Document ingestion API (`POST /api/documents/upload`)
+  - Multipart fields: `businessId` (existing `businesses.id` UUID), `file` (PDF only, max 10 MB)
+  - Pipeline: extract → chunk → `embedTexts(..., "RETRIEVAL_DOCUMENT")` → one Neon transaction
+  - Saves `documents` (`status: ready`) and all `document_chunks` with embeddings
+  - `businessId` is a temporary testing selector — not authentication or authorization
 
 ## Planned
 
 - Auth and business memberships
-- Document upload API and file storage
-- Persist embeddings into `document_chunks` (service ready; write path not built)
+- Durable PDF file storage (disk/object storage)
 - Retrieval + chat API with citations
 - Frontend upload and chat UI
 - OCR for scanned PDFs (out of scope for v1)
@@ -85,19 +88,24 @@ KnowledgeBaseChat/
     src/app.ts
     src/index.ts
     src/config/database.ts
+    src/routes/documents.ts
     src/services/embeddings.ts
+    src/services/ingestDocument.ts
     src/utils/extractPdfText.ts
     src/utils/chunkText.ts
 ```
 
 ## Setup
 
-**Prerequisites:** Node.js 20+, Neon project (schema already applied for this project), Google Gemini API key (obtainable from Google AI Studio; required to call the embedding service; chat later).
+**Prerequisites:** Node.js 20+, Neon project, Google Gemini API key (obtainable from Google AI Studio; required for embeddings; chat later). For a fresh Neon database, apply `backend/migrations/001_initial_schema.sql` once. This project’s existing database already has that schema applied. Seed at least one `businesses` row for upload testing.
 
 ```bash
-cd frontend && npm install
-cd ../backend && npm install
-cp .env.example .env   # from backend/
+cd frontend
+npm install
+
+cd ../backend
+npm install
+cp .env.example .env
 ```
 
 ### Environment variables (`backend/.env`)
@@ -128,8 +136,26 @@ npm run dev
 curl http://localhost:4000/health
 ```
 
+### Upload a PDF (Postman)
+
+1. Ensure a business exists and copy its `id`:
+
+```sql
+INSERT INTO businesses (name, slug)
+VALUES ('Demo Business', 'demo')
+RETURNING id;
+```
+
+2. `POST http://localhost:4000/api/documents/upload`
+   - Body → form-data:
+     - `businessId` (Text) = that UUID
+     - `file` (File) = a selectable-text PDF (max 10 MB)
+3. Expect `201` with `documentId`, `status: "ready"`, and `chunkCount`.
+4. Confirm rows in Neon for that document and its `document_chunks` embeddings.
+
 ## Security
 
 - Keep secrets in local `.env` only.
 - Do not commit API keys, database URLs, or customer PDFs.
 - Auth and tenant enforcement in application code are not implemented yet.
+- `businessId` on upload only checks that the business exists; it is not authorization.
