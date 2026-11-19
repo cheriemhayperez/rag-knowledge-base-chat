@@ -55,6 +55,7 @@ User → Frontend (Next.js) — document upload UI implemented; chat UI planned
 - Frontend document upload UI (`/documents`)
   - PDF upload with validation and notifications
   - Session-based upload list
+  - Responsive sidebar navigation
 - Express `/health` endpoint
 - Neon connection helper (`backend/src/config/database.ts`)
 - Initial DB schema on Neon: `businesses`, `documents`, `document_chunks`
