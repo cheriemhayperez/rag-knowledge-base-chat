@@ -1,0 +1,73 @@
+.row td {
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+  vertical-align: middle;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.fileBadge {
+  flex-shrink: 0;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 0.7rem;
+  display: grid;
+  place-items: center;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.nameBlock {
+  min-width: 0;
+}
+
+.filename {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  word-break: break-word;
+}
+
+.meta {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.dateCell {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+}
+
+.statusReady {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: currentColor;
+}

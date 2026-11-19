@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "KnowledgeBaseChat",
   description:
-    "Ask questions and get AI answers grounded in your knowledge base documents.",
+    "Upload documentation and chat with an AI assistant grounded in your knowledge base.",
 };
 
 export default function RootLayout({
@@ -13,17 +21,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          minHeight: "100vh",
-          fontFamily:
-            "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
-          background: "#0f1419",
-          color: "#e7ecf3",
-        }}
-      >
-        {children}
+      <body className={`${inter.variable} ${inter.className}`}>
+        <main className="app-main">{children}</main>
       </body>
     </html>
   );

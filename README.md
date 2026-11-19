@@ -4,7 +4,9 @@ Multi-business AI Knowledge Base Chat using Retrieval-Augmented Generation (RAG)
 
 Businesses upload documentation into an isolated knowledge base. Users ask questions in chat and receive AI answers grounded in those documents, with retrieved chunk context as sources.
 
-Early-stage portfolio project: PDF ingestion, vector retrieval, and LLM answer generation are in place; frontend upload/chat UI is not complete yet.
+Early-stage portfolio project: PDF ingestion, vector retrieval,
+and LLM answer generation are implemented. The document upload
+UI is available; the AI chat UI is still planned.
 
 ## Problem
 
@@ -25,7 +27,7 @@ Two independent apps (`frontend/`, `backend/`)
 ## Architecture
 
 ```
-User → Frontend (Next.js) — upload/chat UI planned
+User → Frontend (Next.js) — document upload UI implemented; chat UI planned
          → REST → Backend (Express)
                      → POST /api/documents/upload
                      → PDF extract → chunk text → embed (RETRIEVAL_DOCUMENT, 768-dim)
@@ -50,7 +52,9 @@ User → Frontend (Next.js) — upload/chat UI planned
 
 ## Implemented
 
-- Frontend welcome page (`frontend/app`)
+- Frontend document upload UI (`/documents`)
+  - PDF upload with validation and notifications
+  - Session-based upload list
 - Express `/health` endpoint
 - Neon connection helper (`backend/src/config/database.ts`)
 - Initial DB schema on Neon: `businesses`, `documents`, `document_chunks`
@@ -94,7 +98,7 @@ User → Frontend (Next.js) — upload/chat UI planned
 
 - Auth and business memberships
 - Durable PDF file storage (disk/object storage)
-- Frontend upload and chat UI
+- Frontend AI chat UI
 - OCR for scanned PDFs (out of scope for v1)
 
 ## Project structure
@@ -104,8 +108,19 @@ KnowledgeBaseChat/
   README.md
   .gitignore
   frontend/
-    app/layout.tsx
-    app/page.tsx
+    app/
+      documents/
+        DocumentsView.tsx
+        page.tsx
+        page.module.css
+      layout.tsx
+      page.tsx
+      globals.css
+    components/
+    hooks/
+    lib/
+    types/
+    utils/
     package.json
   backend/
     .env.example
@@ -139,6 +154,12 @@ cd ../backend
 npm install
 cp .env.example .env
 ```
+
+For the frontend, copy `frontend/.env.example` to
+`frontend/.env.local` and configure:
+
+- `NEXT_PUBLIC_API_BASE_URL`
+- `NEXT_PUBLIC_BUSINESS_ID`
 
 ### Environment variables (`backend/.env`)
 
