@@ -83,7 +83,9 @@ documentsRouter.post("/upload", (req, res) => {
         return;
       }
 
-      console.error("Document upload failed:", error);
+      const message =
+        error instanceof Error ? error.message : "Document upload failed";
+      console.error("Document upload failed:", message);
       res.status(500).json({ error: "Failed to ingest document" });
     }
   });

@@ -85,6 +85,10 @@ User → Frontend (Next.js) — upload/chat UI planned
   - Chat client uses SDK `httpOptions.retryOptions` for temporary HTTP errors (408, 429, 500, 502, 503, 504; up to 4 attempts)
   - Validation/errors align with retrieve: 400 invalid input, 404 unknown business, 502 Gemini failures (generic client message)
   - `businessId` is a temporary testing selector — not authentication or authorization
+- Backend request logging (`backend/src/utils/logger.ts`)
+  - Startup banner with environment and server URL
+  - Per-request method/path, stage INFO lines, final status and duration
+  - Does not log API keys, prompts, document contents, or embeddings
 
 ## Planned
 
@@ -106,6 +110,8 @@ KnowledgeBaseChat/
   backend/
     .env.example
     package.json
+    migrations/
+      001_initial_schema.sql
     src/app.ts
     src/index.ts
     src/config/database.ts
@@ -118,6 +124,7 @@ KnowledgeBaseChat/
     src/services/answerQuestion.ts
     src/utils/extractPdfText.ts
     src/utils/chunkText.ts
+    src/utils/logger.ts
 ```
 
 ## Setup
@@ -137,7 +144,7 @@ cp .env.example .env
 
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | Neon Postgres connection string |
+| `DATABASE_URL` | Neon Postgres connection string (use `sslmode=verify-full`) |
 | `GEMINI_API_KEY` | Required for embeddings and chat generation (backend only; never commit) |
 | `GEMINI_EMBEDDING_MODEL` | Embedding model (default `gemini-embedding-001`) |
 | `GEMINI_EMBEDDING_DIMENSIONS` | Output dimensions (default `768`; only `768` is supported today — must match DB `vector(768)`; other values are rejected) |
@@ -216,5 +223,6 @@ RETURNING id;
 
 - Keep secrets in local `.env` only.
 - Do not commit API keys, database URLs, or customer PDFs.
+- Prefer `sslmode=verify-full` in `DATABASE_URL` (as in `.env.example`).
 - Auth and tenant enforcement in application code are not implemented yet.
 - `businessId` on upload, retrieve, and chat only checks that the business exists; it is not authorization.

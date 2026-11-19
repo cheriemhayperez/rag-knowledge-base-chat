@@ -43,7 +43,9 @@ retrieveRouter.post("/", async (req, res) => {
       return;
     }
 
-    console.error("Chunk retrieval failed:", error);
+    const message =
+      error instanceof Error ? error.message : "Chunk retrieval failed";
+    console.error("Chunk retrieval failed:", message);
     res.status(500).json({ error: "Failed to retrieve chunks" });
   }
 });

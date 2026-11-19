@@ -40,7 +40,9 @@ chatRouter.post("/", async (req, res) => {
       return;
     }
 
-    console.error("Chat request failed:", error);
+    const message =
+      error instanceof Error ? error.message : "Chat request failed";
+    console.error("Chat request failed:", message);
     res.status(500).json({ error: "Failed to generate chat answer" });
   }
 });
